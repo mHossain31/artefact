@@ -11,6 +11,7 @@ import UrlCard from "@/components/dashboard/url-card"
 import AddUrlModal from "@/components/dashboard/add-url-modal"
 import EditUrlModal from "@/components/dashboard/edit-url-modal"
 import DeleteUrlModal from "@/components/dashboard/delete-url-modal"
+import { CategoryIcon } from "@/lib/icons" // Import the icon component
 import { PlusIcon, MagnifyingGlassIcon, Squares2X2Icon, ListBulletIcon, FunnelIcon } from "@heroicons/react/24/outline"
 
 interface DashboardData {
@@ -211,8 +212,19 @@ export default function DashboardPage() {
                   {data.categories.map((category) => (
                     <SelectItem key={category.id} value={category.id} className="font-sans">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
-                        {category.icon} {category.name}
+                        <div 
+                          className="w-3 h-3 rounded-full flex items-center justify-center"
+                          style={{ backgroundColor: category.color }}
+                        >
+                          {category.icon && (
+                            <CategoryIcon 
+                              iconName={category.icon} 
+                              size="sm"
+                              className="text-white"
+                            />
+                          )}
+                        </div>
+                        {category.name}
                       </div>
                     </SelectItem>
                   ))}

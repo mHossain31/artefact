@@ -29,6 +29,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 })
     }
 
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
+    }
+
     // Get user's current workspace and check permissions
     const userMembership = await prisma.workspaceMember.findFirst({
       where: { userId: session.userId },
@@ -76,26 +82,53 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Send invitation email
+    // Get inviter information
     const inviter = await prisma.user.findUnique({
       where: { id: session.userId },
       select: { name: true, email: true },
     })
 
-    await sendTeamInviteEmail(
-      email,
-      userMembership.workspace.name,
-      inviter?.name || inviter?.email || "A team member",
-      role,
-      message,
-    )
+    // Send invitation email with new template
+    try {
+      await sendTeamInviteEmail(
+        email,
+        userMembership.workspace.name,
+        inviter?.name || inviter?.email || "A team member",
+        role,
+        message
+      )
 
-    console.log(`✅ Team invitation sent to ${email} for workspace ${userMembership.workspace.name}`)
+      console.log(`✅ Team invitation sent to ${email} for workspace ${userMembership.workspace.name}`)
+    } catch (emailError) {
+      console.error("📧 Email sending failed:", emailError)
+      
+      // Still return success since the user was added to the workspace
+      // You might want to implement a retry mechanism or queue system
+      console.log("⚠️ User was added to workspace but email failed to send")
+    }
 
-    return NextResponse.json({ message: "Invitation sent successfully" })
+    return NextResponse.json({ 
+      message: "Invitation sent successfully",
+      details: {
+        email,
+        workspace: userMembership.workspace.name,
+        role,
+        inviter: inviter?.name || inviter?.email
+      }
+    })
+
   } catch (error: any) {
     console.error("❌ Team invite error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    
+    // More specific error handling
+    if (error.code === 'P2002') {
+      return NextResponse.json({ error: "User is already a member" }, { status: 409 })
+    }
+    
+    return NextResponse.json({ 
+      error: "Internal server error",
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    }, { status: 500 })
   }
 }
 
@@ -108,20 +141,33 @@ export async function POST(request: NextRequest) {
 
 
 
+
+
+
+
+
+
+
 // import { type NextRequest, NextResponse } from "next/server"
-// import { verify } from "jsonwebtoken"
+// import { validateSession } from "@/lib/auth"
 // import { prisma } from "@/lib/prisma"
 // import { sendTeamInviteEmail } from "@/lib/email"
 
 // export async function POST(request: NextRequest) {
 //   try {
-//     const token = request.cookies.get("auth-token")?.value
+//     const sessionCookie = request.cookies.get("session")
 
-//     if (!token) {
+//     if (!sessionCookie) {
 //       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 //     }
 
-//     const decoded = verify(token, process.env.JWT_SECRET || "fallback-secret") as { userId: string }
+//     // Validate session using your existing auth system
+//     const session = await validateSession(sessionCookie.value)
+    
+//     if (!session) {
+//       return NextResponse.json({ error: "Invalid session" }, { status: 401 })
+//     }
+
 //     const { email, role, message } = await request.json()
 
 //     // Validate input
@@ -135,7 +181,7 @@ export async function POST(request: NextRequest) {
 
 //     // Get user's current workspace and check permissions
 //     const userMembership = await prisma.workspaceMember.findFirst({
-//       where: { userId: decoded.userId },
+//       where: { userId: session.userId },
 //       include: { workspace: true },
 //     })
 
@@ -182,7 +228,7 @@ export async function POST(request: NextRequest) {
 
 //     // Send invitation email
 //     const inviter = await prisma.user.findUnique({
-//       where: { id: decoded.userId },
+//       where: { id: session.userId },
 //       select: { name: true, email: true },
 //     })
 
@@ -194,9 +240,13 @@ export async function POST(request: NextRequest) {
 //       message,
 //     )
 
+//     console.log(`✅ Team invitation sent to ${email} for workspace ${userMembership.workspace.name}`)
+
 //     return NextResponse.json({ message: "Invitation sent successfully" })
-//   } catch (error) {
-//     console.error("Team invite error:", error)
+//   } catch (error: any) {
+//     console.error("❌ Team invite error:", error)
 //     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
 //   }
 // }
+
+
